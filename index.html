@@ -1,0 +1,73 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>声控跑酷</title>
+    <link rel="stylesheet" href="style.css" />
+  </head>
+  <body>
+    <main class="shell">
+      <section class="game-panel" aria-label="声控跑酷游戏">
+        <div class="topbar">
+          <div class="brand">
+            <span class="brand-mark"></span>
+            <div>
+              <h1>声控跑酷</h1>
+              <p>喊一声跳起来，声音越大跳得越高</p>
+            </div>
+          </div>
+
+          <div class="stats" aria-label="游戏数据">
+            <div class="stat">
+              <span>分数</span>
+              <strong id="score">0</strong>
+            </div>
+            <div class="stat">
+              <span>最高分</span>
+              <strong id="bestScore">0</strong>
+            </div>
+            <div class="stat status-stat">
+              <span>状态</span>
+              <strong id="statusText">待开始</strong>
+            </div>
+          </div>
+        </div>
+
+        <div class="canvas-wrap">
+          <canvas id="gameCanvas" width="1280" height="720"></canvas>
+          <div id="overlay" class="overlay">
+            <div class="overlay-card">
+              <h2 id="overlayTitle">准备开跑</h2>
+              <p id="overlayMessage">点击开始后允许麦克风权限。角色会自动奔跑，喊得越响跳得越高。空格键可调试中跳。</p>
+              <button id="startButton" type="button">开始游戏</button>
+              <button id="restartButton" class="hidden" type="button">再来一局</button>
+            </div>
+          </div>
+        </div>
+
+        <div class="controls">
+          <div class="volume-area">
+            <div class="volume-label">
+              <span>麦克风音量</span>
+              <strong id="volumePercent">0%</strong>
+            </div>
+            <div class="volume-track" aria-hidden="true">
+              <div id="volumeFill" class="volume-fill"></div>
+              <div class="volume-threshold"></div>
+            </div>
+          </div>
+
+          <div class="tips">
+            <span>小声小跳</span>
+            <span>大声高跳</span>
+            <span>空中不能连跳</span>
+            <span>空格键调试</span>
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <script src="game.js"></script>
+  </body>
+</html>
