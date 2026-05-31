@@ -25,6 +25,8 @@ const VOLUME_THRESHOLD = 0.08;
 const VOLUME_CAP = 0.45;
 const MIN_JUMP = 760;
 const MAX_JUMP = 1180;
+const VOICE_REARM_VOLUME = VOLUME_THRESHOLD * 0.9;
+const MAX_HOVER_TIME = 2;
 
 let audioContext;
 let analyser;
@@ -43,6 +45,7 @@ let speed = START_SPEED;
 let spawnTimer = 0;
 let failReason = "";
 let shoutArmed = true;
+let spaceHeld = false;
 let sceneryOffset = 0;
 
 const player = {
@@ -52,6 +55,7 @@ const player = {
   h: PLAYER_H,
   vy: 0,
   grounded: true,
+  hoverRemaining: MAX_HOVER_TIME,
   runPhase: 0,
 };
 
@@ -83,6 +87,7 @@ function resetGame() {
   spawnTimer = 1.1;
   failReason = "";
   shoutArmed = true;
+  spaceHeld = false;
   sceneryOffset = 0;
   peakWindow = 0;
   obstacles = [];
@@ -100,6 +105,7 @@ function resetGame() {
   player.y = GROUND_Y - PLAYER_H;
   player.vy = 0;
   player.grounded = true;
+  player.hoverRemaining = MAX_HOVER_TIME;
   player.runPhase = 0;
 
   scoreEl.textContent = "0";
@@ -168,21 +174,35 @@ function volumeToJumpPower(value) {
 
 function jump(power) {
   if (state !== "running" || !player.grounded) return;
+
   player.vy = -power;
   player.grounded = false;
+  player.hoverRemaining = MAX_HOVER_TIME;
+
   statusTextEl.textContent = power > 1040 ? "高跳" : power > 880 ? "普通跳" : "小跳";
 }
 
-function tryVoiceJump(currentVolume) {
-  if (currentVolume < VOLUME_THRESHOLD * 0.55) {
+function updateAirControl(currentVolume, dt) {
+  if (currentVolume < VOICE_REARM_VOLUME) {
     shoutArmed = true;
   }
 
-  if (!shoutArmed || !player.grounded || currentVolume <= VOLUME_THRESHOLD) return;
+  if (player.grounded) {
+    if (shoutArmed && currentVolume > VOLUME_THRESHOLD) {
+      const jumpPower = volumeToJumpPower(Math.max(currentVolume, peakWindow));
+      shoutArmed = false;
+      jump(jumpPower);
+    }
+    return false;
+  }
 
-  const jumpPower = volumeToJumpPower(Math.max(currentVolume, peakWindow));
-  shoutArmed = false;
-  jump(jumpPower);
+  const wantsHover = currentVolume > VOLUME_THRESHOLD || spaceHeld;
+  // 只在下落阶段滞空：上升时保持正常重力，避免一跳冲出屏幕、并把滞空预算留给真正需要的下落过程
+  if (!wantsHover || player.hoverRemaining <= 0 || player.vy < 0) return false;
+
+  player.hoverRemaining = Math.max(0, player.hoverRemaining - dt);
+  statusTextEl.textContent = `滞空 ${player.hoverRemaining.toFixed(1)}s`;
+  return true;
 }
 
 function spawnSegment() {
@@ -212,7 +232,7 @@ function spawnSegment() {
 
 function updateGame(dt) {
   const currentVolume = readVolume();
-  tryVoiceJump(currentVolume);
+  const hovering = updateAirControl(currentVolume, dt);
 
   speed = Math.min(MAX_SPEED, speed + dt * 7.8);
   distance += speed * dt;
@@ -222,13 +242,21 @@ function updateGame(dt) {
   sceneryOffset = (sceneryOffset + speed * dt) % 96;
   player.runPhase += dt * (9 + speed / 90);
 
-  player.vy += GRAVITY * dt;
+  if (hovering) {
+    // 悬停：声音持续时停在最高点，垂直方向完全静止，松口才开始下落
+    player.vy = 0;
+  } else {
+    player.vy += GRAVITY * dt;
+  }
   player.y += player.vy * dt;
 
   if (player.y + player.h >= GROUND_Y) {
     player.y = GROUND_Y - player.h;
     player.vy = 0;
-    if (!player.grounded) statusTextEl.textContent = "奔跑中";
+    if (!player.grounded) {
+      statusTextEl.textContent = "奔跑中";
+      player.hoverRemaining = MAX_HOVER_TIME;
+    }
     player.grounded = true;
   }
 
@@ -510,10 +538,17 @@ restartButton.addEventListener("click", startGame);
 window.addEventListener("keydown", (event) => {
   if (event.code !== "Space") return;
   event.preventDefault();
+  spaceHeld = true;
 
-  if (state === "running") {
+  if (state === "running" && !event.repeat) {
     jump(930);
   }
+});
+
+window.addEventListener("keyup", (event) => {
+  if (event.code !== "Space") return;
+  event.preventDefault();
+  spaceHeld = false;
 });
 
 window.addEventListener("beforeunload", () => {
