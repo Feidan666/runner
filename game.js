@@ -26,7 +26,6 @@ const VOLUME_CAP = 0.45;
 const MIN_JUMP = 760;
 const MAX_JUMP = 1180;
 const VOICE_REARM_VOLUME = VOLUME_THRESHOLD * 0.9;
-const MAX_HOVER_TIME = 2;
 
 let audioContext;
 let analyser;
@@ -55,7 +54,6 @@ const player = {
   h: PLAYER_H,
   vy: 0,
   grounded: true,
-  hoverRemaining: MAX_HOVER_TIME,
   runPhase: 0,
 };
 
@@ -105,7 +103,6 @@ function resetGame() {
   player.y = GROUND_Y - PLAYER_H;
   player.vy = 0;
   player.grounded = true;
-  player.hoverRemaining = MAX_HOVER_TIME;
   player.runPhase = 0;
 
   scoreEl.textContent = "0";
@@ -177,12 +174,11 @@ function jump(power) {
 
   player.vy = -power;
   player.grounded = false;
-  player.hoverRemaining = MAX_HOVER_TIME;
 
   statusTextEl.textContent = power > 1040 ? "高跳" : power > 880 ? "普通跳" : "小跳";
 }
 
-function updateAirControl(currentVolume, dt) {
+function updateAirControl(currentVolume) {
   if (currentVolume < VOICE_REARM_VOLUME) {
     shoutArmed = true;
   }
@@ -197,11 +193,10 @@ function updateAirControl(currentVolume, dt) {
   }
 
   const wantsHover = currentVolume > VOLUME_THRESHOLD || spaceHeld;
-  // 只在下落阶段滞空：上升时保持正常重力，避免一跳冲出屏幕、并把滞空预算留给真正需要的下落过程
-  if (!wantsHover || player.hoverRemaining <= 0 || player.vy < 0) return false;
+  // 到顶点后只要持续发声就一直悬停，无时间上限（人声本身有限，停声即落）；上升阶段保持正常重力
+  if (!wantsHover || player.vy < 0) return false;
 
-  player.hoverRemaining = Math.max(0, player.hoverRemaining - dt);
-  statusTextEl.textContent = `滞空 ${player.hoverRemaining.toFixed(1)}s`;
+  statusTextEl.textContent = "悬停中";
   return true;
 }
 
@@ -232,7 +227,7 @@ function spawnSegment() {
 
 function updateGame(dt) {
   const currentVolume = readVolume();
-  const hovering = updateAirControl(currentVolume, dt);
+  const hovering = updateAirControl(currentVolume);
 
   speed = Math.min(MAX_SPEED, speed + dt * 7.8);
   distance += speed * dt;
@@ -255,7 +250,6 @@ function updateGame(dt) {
     player.vy = 0;
     if (!player.grounded) {
       statusTextEl.textContent = "奔跑中";
-      player.hoverRemaining = MAX_HOVER_TIME;
     }
     player.grounded = true;
   }
